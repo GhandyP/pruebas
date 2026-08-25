@@ -65,8 +65,11 @@ resumir_kpi_mensual <- function(df_mensual) {
 kpi_por_mesa <- function(df) {
   if (requireNamespace("dplyr", quietly = TRUE)) {
     df |>
-      dplyr::mutate(notional = .data$qty * .data$price) |>
-      dplyr::group_by(.data$desk, .data$mes = .data$date) |>
+      dplyr::mutate(
+        mes = .data$date,
+        notional = .data$qty * .data$price
+      ) |>
+      dplyr::group_by(.data$desk, .data$mes) |>
       dplyr::summarise(
         ops = dplyr::n(),
         notional = sum(.data$notional),
@@ -78,9 +81,16 @@ kpi_por_mesa <- function(df) {
     # base R fallback
     df$mes <- as.Date(format(df$date, "%Y-%m-01"))
     df$notional <- df$qty * df$price
+    df <- data.frame(
+      desk = df$desk,
+      mes = as.Date(format(df$date, "%Y-%m-01")),
+      ops = 1,
+      notional = df$qty * df$price,
+      commissions = df$commission
+    )
     out <- stats::aggregate(
-      cbind(ops = rep(1, nrow(df)), notional = df$notional, commissions = df$commission) ~ desk + mes,
-      data = df[, c("desk", "mes", "notional", "commission")], FUN = sum
+      cbind(ops, notional, commissions) ~ desk + mes,
+      data = df, FUN = sum
     )
     out$ops <- as.integer(out$ops)
     out[order(out$desk, out$mes), ]

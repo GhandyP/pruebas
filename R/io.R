@@ -187,8 +187,16 @@ validar_contrato <- function(df, tipo, asof = Sys.Date()) {
 # --- Helpers internos ----------------------------------------------------
 
 assert_non_nulos <- function(df, cols) {
+  faltantes <- setdiff(cols, names(df))
+  if (length(faltantes) > 0) {
+    stop(sprintf("[io.R] Faltan columnas: %s.", paste(faltantes, collapse = ", ")),
+         call. = FALSE)
+  }
   for (col in cols) {
-    if (any(is.na(df[[col]]) | df[[col]] == "")) {
+    v <- df[[col]]
+    has_na <- any(is.na(v))
+    has_empty <- if (is.character(v)) any(!is.na(v) & v == "") else FALSE
+    if (has_na || has_empty) {
       stop(sprintf("[io.R] Columna '%s' tiene nulos o vac\u00edos.", col), call. = FALSE)
     }
   }
