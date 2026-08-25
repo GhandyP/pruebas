@@ -118,8 +118,8 @@ for (s in SYMBOLS) {
     50
   }
   n_dias <- length(fecha_seq)
-  drift <- rlnorm(n_dias, meanlog = 0, sdlog = 0.01)
-  closes <- base_price * cumprod(exp(drift))
+      drift <- rnorm(n_dias, mean = 0, sd = 0.01)
+      closes <- base_price * exp(cumsum(drift))
   opens <- c(base_price, head(closes, -1))
   highs <- pmax(opens, closes) * (1 + abs(rnorm(n_dias, 0, 0.003)))
   lows <- pmin(opens, closes) * (1 - abs(rnorm(n_dias, 0, 0.003)))

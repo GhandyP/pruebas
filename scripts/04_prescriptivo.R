@@ -28,6 +28,7 @@ suppressWarnings(suppressMessages({
   source(file.path(src_dir, "metrics.R"))
   source(file.path(src_dir, "utils.R"))
   source(file.path(src_dir, "cli.R"))
+  source(file.path(src_dir, "optimizer.R"))
 }))
 
 if (!requireNamespace("optparse", quietly = TRUE)) {
@@ -75,35 +76,143 @@ retornos <- if (!is.null(forecast_path) && length(forecast_path) > 0 && file.exi
   )
 }
 
-# --- C\u00e1lculo de recomendaciones ---------------------------------------
-calc_recomendaciones <- function(escenario_label, factor_reduccion) {
+# --- Optimizador LP: 3 escenarios con distintas restricciones ----------------
+# El LP (vía ROI.plugin.glpk) maximiza el retorno esperado del portafolio sujeto a:
+#   - restricciones mínimas (ej: ORO >= 10% cobertura)
+#   - restricciones máximas (ej: cualquier símbolo <= 40% concentración)
+#   - presupuesto total = 1 (la suma de pesos debe ser 1)
+# Si el LP no resuelve, cae a un modo heurístico (registrado en metadata).
+
+escenarios_specs <- list(
+  CONSERVADOR = list(
+    label = "CONSERVADOR",
+    max_w = c(AAPL = 0.20, MSFT = 0.20, GOOG = 0.20,
+              BONO2027 = 0.30, ORO = 0.40, DOLAR = 0.30),
+    min_w = c(AAPL = 0.00, MSFT = 0.00, GOOG = 0.00,
+              BONO2027 = 0.05, ORO = 0.20, DOLAR = 0.00)
+  ),
+  BASE = list(
+    label = "BASE",
+    max_w = c(AAPL = 0.40, MSFT = 0.40, GOOG = 0.40,
+              BONO2027 = 0.40, ORO = 0.30, DOLAR = 0.20),
+    min_w = c(AAPL = 0.00, MSFT = 0.00, GOOG = 0.00,
+              BONO2027 = 0.00, ORO = 0.10, DOLAR = 0.00)
+  ),
+  AGRESIVO = list(
+    label = "AGRESIVO",
+    max_w = c(AAPL = 0.60, MSFT = 0.50, GOOG = 0.50,
+              BONO2027 = 0.30, ORO = 0.30, DOLAR = 0.15),
+    min_w = c(AAPL = 0.00, MSFT = 0.00, GOOG = 0.00,
+              BONO2027 = 0.00, ORO = 0.05, DOLAR = 0.00)
+  )
+)
+
+resolver_y_recomendar <- function(spec) {
+  simbolos <- names(spec$max_w)
+  # Tomar retornos esperados del catálogo definido en este script
+  retornos_v <- retornos$retorno_esperado[match(simbolos, retornos$symbol)]
+  if (any(is.na(retornos_v))) {
+    log_msg("WARN", sprintf("Symbolos sin retorno esperado: %s",
+                            paste(simbolos[is.na(retornos_v)], collapse = ", ")))
+    retornos_v[is.na(retornos_v)] <- 0
+  }
+  res <- resolver_portafolio_lp(
+    simbolos            = simbolos,
+    retornos_esperados  = retornos_v,
+    min_w               = spec$min_w[simbolos],
+    max_w               = spec$max_w[simbolos]
+  )
+  if (is.null(res) || is.null(res$status$code) || res$status$code != 0L) {
+    log_msg("WARN", sprintf("LP no resolvió para escenario %s; cayendo a heurístico",
+                            spec$label))
+    return(calc_recomendaciones_heuristico(spec$label))
+  }
+  log_msg("INFO", sprintf("LP %s: retorno esperado %s, pesos óptimos %s",
+                          spec$label, round(res$retorno_esperado, 4),
+                          paste(sprintf("%s=%s", names(res$weights),
+                                        round(res$weights, 3)),
+                                collapse = ", ")))
+  recomendaciones_por_lp(pos, res$weights, retornos, spec$label)
+}
+
+recomendaciones_por_lp <- function(pos, weights, retornos, escenario_label) {
+  # Por símbolo, computar target en función del peso objetivo
+  notional_sim <- tapply(pos$qty * pos$avg_price, pos$symbol, sum)
+  total_actual <- sum(notional_sim)
+  if (total_actual == 0) {
+    return(calc_recomendaciones_heuristico(escenario_label))
+  }
+  # Valor objetivo por símbolo
+  target_value <- weights * total_actual
+  # Cantidad actual y avg_price por símbolo
+  qty_actual_sim <- tapply(pos$qty, pos$symbol, sum)
+  avgp <- tapply(pos$avg_price, pos$symbol, function(x) mean(x, na.rm = TRUE))
+  target_qty_sim <- target_value[names(qty_actual_sim)] / avgp[names(qty_actual_sim)]
+  target_qty_sim[is.na(target_qty_sim) | !is.finite(target_qty_sim)] <- 0
+  delta_qty_sim <- target_qty_sim - qty_actual_sim
+  delta_qty_sim[is.na(delta_qty_sim)] <- 0
+
+  # Recomendar por símbolo: COMPRAR si delta>0, VENDER si delta<0, MANTENER si ~0
+  recomendacion_sim <- ifelse(abs(delta_qty_sim) < max(1, 0.01 * qty_actual_sim),
+                              "MANTENER",
+                              ifelse(delta_qty_sim > 0, "COMPRAR", "VENDER"))
+
+  # Distribuir las recomendaciones y delta a (client_id, symbol) proporcionales
+  # a su participación en el notional actual por símbolo.
+  pos$notional_sim <- pos$qty * pos$avg_price
+  pos$total_sim <- notional_sim[pos$symbol]
+  pos$participacion <- ifelse(pos$total_sim == 0,
+                              0,
+                              pos$notional_sim / pos$total_sim)
+
+  df <- merge(pos,
+              data.frame(symbol = names(delta_qty_sim),
+                         delta_qty = as.numeric(delta_qty_sim),
+                         recomendacion = recomendacion_sim,
+                         target_qty = as.numeric(target_qty_sim),
+                         weight_optimo = as.numeric(weights[names(delta_qty_sim)])),
+              by = "symbol", all.x = TRUE)
+  df$delta_qty[is.na(df$delta_qty)] <- 0
+  df$delta_qty_recomendado <- round(df$delta_qty * df$participacion, 2)
+  df$notional <- df$qty * df$avg_price
+  df$retorno_esperado <- retornos$retorno_esperado[match(df$symbol, retornos$symbol)]
+  df$retorno_esperado[is.na(df$retorno_esperado)] <- 0
+  df$escenario <- escenario_label
+  df[, c("date", "client_id", "symbol", "qty", "avg_price", "margin_used",
+         "notional", "weight_optimo", "qty_actual" = "qty",
+         "target_qty", "retorno_esperado", "delta_qty", "recomendacion",
+         "delta_qty_recomendado", "escenario"), drop = FALSE]
+}
+
+calc_recomendaciones_heuristico <- function(escenario_label) {
   df <- merge(pos, retornos, by = "symbol", all.x = TRUE)
   df$retorno_esperado[is.na(df$retorno_esperado)] <- 0
   df$notional <- df$qty * df$avg_price
-  # Score simple: retorno / (riesgo proporcional al margin_used)
   df$score <- df$retorno_esperado / (1 + df$margin_used / pmax(df$notional, 1))
-
   df$recomendacion <- ifelse(df$score >= 0.10, "MANTENER",
-    ifelse(df$score >= 0.03, "REDUCIR_25", "VENDER_TODO")
-  )
+                             ifelse(df$score >= 0.03, "REDUCIR_25", "VENDER_TODO"))
   df$delta_qty_recomendado <- ifelse(df$recomendacion == "MANTENER", 0,
-    ifelse(df$recomendacion == "REDUCIR_25",
-      -round(df$qty * 0.25 * factor_reduccion, 2),
-      -round(df$qty * factor_reduccion, 2)
-    )
-  )
+                                     ifelse(df$recomendacion == "REDUCIR_25",
+                                            -round(df$qty * 0.25, 2),
+                                            -round(df$qty, 2)))
   df$escenario <- escenario_label
-  df[, c(
-    "date", "client_id", "symbol", "qty", "avg_price", "margin_used",
-    "notional", "retorno_esperado", "score", "recomendacion",
-    "delta_qty_recomendado", "escenario"
-  ), drop = FALSE]
+  df[, c("date", "client_id", "symbol", "qty", "avg_price", "margin_used",
+         "notional", "retorno_esperado",
+         "weight_optimo" = "qty", "qty_actual" = "qty",
+         "target_qty" = "qty",
+         "retorno_esperado", "delta_qty" = "qty",
+         "recomendacion", "delta_qty_recomendado",
+         "escenario"), drop = FALSE]
+  df$weight_optimo <- NA_real_
+  df$target_qty <- NA_real_
+  df$delta_qty <- NA_real_
+  df
 }
 
-# Tres escenarios con factor creciente: conservador, base, agresivo
-recomendaciones_base <- calc_recomendaciones("BASE", 1.0)
-recomendaciones_cons <- calc_recomendaciones("CONSERVADOR", 0.5)
-recomendaciones_agres <- calc_recomendaciones("AGRESIVO", 1.5)
+# Tres escenarios con restricciones distintas
+recomendaciones_cons <- resolver_y_recomendar(escenarios_specs$CONSERVADOR)
+recomendaciones_base <- resolver_y_recomendar(escenarios_specs$BASE)
+recomendaciones_agres <- resolver_y_recomendar(escenarios_specs$AGRESIVO)
 
 recomendaciones_todas <- rbind(recomendaciones_cons, recomendaciones_base, recomendaciones_agres)
 
