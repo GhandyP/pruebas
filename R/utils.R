@@ -68,3 +68,22 @@ paleta_mesas <- function() {
     FX = "#d62728", WEALTH = "#9467bd"
   )
 }
+
+#' Parsea --asof en l\u00ednea de comandos. **Obligatorio** desde el CLI.
+#' Las pruebas internas pueden pasar `default = as.Date(\"2026-06-30\")`.
+#' Si el usuario corre el script y no pasa --asof, falla con mensaje claro.
+#' Para usar "hoy" expl\u00edcitamente como fecha de corte, pasar `--asof today`.
+#'
+#' @param opts lista con campos `asof`. Si es NULL o vac\u00edo, aborta.
+#' @return Date
+parsear_asof_cli <- function(opts, nombre_script = "este m\u00f3dulo") {
+  asof_str <- opts$asof
+  if (is.null(asof_str) || isTRUE(asof_str) || !nzchar(asof_str)) {
+    stop(sprintf(
+      "[util.R] %s requiere --asof YYYY-MM-DD expl\u00edc\u00edto (cumple AGENTS.md §3: prohibici\u00f3n de look-ahead). Para usar la fecha de hoy expl\u00edcitamente, pas\u00e1 --asof today.",
+      nombre_script
+    ), call. = FALSE)
+  }
+  if (identical(asof_str, "today")) return(Sys.Date())
+  as.Date(asof_str)
+}

@@ -48,7 +48,7 @@ run_id <- sprintf(
 out_dir <- file.path(out_root, run_id)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 set.seed(20260224)
-asof <- if (is.null(asof_str) || isTRUE(asof_str)) Sys.Date() else as.Date(asof_str)
+asof <- parsear_asof_cli(opts, "scripts/03_predictivo.R")
 
 log_msg("INFO", sprintf(
   "03_predictivo run=%s horizonte=%d asof=%s",

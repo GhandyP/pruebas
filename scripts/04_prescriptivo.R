@@ -48,7 +48,7 @@ run_id <- sprintf(
 out_dir <- file.path(out_root, run_id)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 asof_str <- opts$asof
-asof <- if (is.null(asof_str) || isTRUE(asof_str)) Sys.Date() else as.Date(asof_str)
+asof <- parsear_asof_cli(opts, "scripts/04_prescriptivo.R")
 
 log_msg("INFO", sprintf("04_prescriptivo run=%s asof=%s", run_id, asof))
 log_msg("WARN", "M\u00f3dulo prescriptivo: produce SOLO recomendaciones. No ejecuta \u00f3rdenes (ADR-8).")

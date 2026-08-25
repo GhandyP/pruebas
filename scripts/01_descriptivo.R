@@ -53,7 +53,7 @@ run_id <- sprintf(
 )
 out_dir <- file.path(out_root, run_id)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-asof <- if (is.null(asof_str) || isTRUE(asof_str)) Sys.Date() else as.Date(asof_str)
+asof <- parsear_asof_cli(opts, "scripts/01_descriptivo.R")
 
 # --- Cargar y validar ---------------------------------------------------------
 log_msg("INFO", sprintf("M\u00f3dulo 01_descriptivo. run_id=%s asof=%s", run_id, asof))

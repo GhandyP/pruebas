@@ -48,6 +48,7 @@ test_that("01_descriptivo.R corre end-to-end y produce salidas", {
       shQuote(file.path(repo_root, "scripts", "01_descriptivo.R")),
       " --input ", shQuote(file.path(data_dir, "operaciones.csv")),
       " --out ", shQuote(out_root),
+      " --asof 2026-06-30",
       " 2>&1"
     )
     out <- system(sh_cmd, intern = TRUE)
