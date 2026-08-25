@@ -185,10 +185,11 @@ mesa_top <- kpi_mesa_df |>
       dplyr::arrange(dplyr::desc(tot)) |> utils::head(1)
   } else {
     agg <- stats::aggregate(commissions ~ desk, data = d, FUN = sum)
-    agg[order(-agg$commissions), ][1, , drop = FALSE]
+    names(agg)[2] <- "tot"
+    agg[order(-agg$tot), ][1, , drop = FALSE]
   })()
 mesa_top_linea <- sprintf("Mesa l\u00edder: %s (%.0f en comisiones)",
-                          mesa_top$desk, mesa_top$commissions[1])
+                          mesa_top$desk, mesa_top$tot[1])
 
 resumen_md <- c(
   "# Resumen ejecutivo \u2014 \u00e1rea descriptiva",
