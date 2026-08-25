@@ -10,12 +10,13 @@ suppressMessages({
   # tidyverse / readr / lubridate — todos opcionales; usamos base R si no est\u00e1n
 })
 
-script_dir <- dirname(sys.frame(1)$ofile %||% "scripts/")
-if (!nzchar(script_dir) || !dir.exists(script_dir)) {
-  # Fallback: ruta relativa al cwd
-  args <- commandArgs(trailingOnly = TRUE)
-  script_dir <- "."
+if (TRUE) {
+  # placeholder no-op
 }
+script_dir <- tryCatch({
+  ofile <- sys.frame(1)$ofile
+  if (!is.null(ofile)) dirname(ofile) else "."
+}, error = function(e) ".")
 
 # --- CLI ----------------------------------------------------------------------
 parse_args <- function(args, defaults = list()) {
@@ -109,7 +110,7 @@ for (s in SYMBOLS) {
     50
   }
   n_dias <- length(fecha_seq)
-  drift <- rnorm(n_dias, meanlog = 0, sdlog = 0.01)
+  drift <- rlnorm(n_dias, meanlog = 0, sdlog = 0.01)
   closes <- base_price * cumprod(exp(drift))
   opens  <- c(base_price, head(closes, -1))
   highs  <- pmax(opens, closes) * (1 + abs(rnorm(n_dias, 0, 0.003)))
