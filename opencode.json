@@ -1,0 +1,40 @@
+{
+  "$schema": "https://opencode.dev/schema.json",
+  "model": {
+    "provider": "anthropic",
+    "id": "claude-sonnet-4-5"
+  },
+  "permission": {
+    "edit": {
+      "R/*": "allow",
+      "scripts/*": "allow",
+      "tests/*": "allow",
+      "_targets.R": "allow",
+      "AGENTS.md": "ask",
+      "*.json": "ask",
+      "*.lock": "ask"
+    },
+    "bash": {
+      "*": "ask",
+      "Rscript *": "allow",
+      "R -e *": "allow",
+      "R --no-save *": "allow",
+      "renv *": "allow",
+      "targets *": "allow",
+      "git status": "allow",
+      "git diff *": "allow",
+      "git log *": "allow"
+    },
+    "webfetch": "deny"
+  },
+  "agents": {
+    "r-quant": "primary",
+    "r-reviewer": "subagent"
+  },
+  "mcp": {},
+  "instructions": [
+    "Lee AGENTS.md antes de cualquier edición.",
+    "Antes de tocar código, lee los archivos relevantes completos.",
+    "Después de cada cambio, ejecuta el o los tests afectados."
+  ]
+}
