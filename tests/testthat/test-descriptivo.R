@@ -3,6 +3,10 @@ context("M\u00f3dulo 01_descriptivo (end-to-end con datos sint\u00e9ticos)")
 
 library(testthat)
 
+if (!exists("%||%", mode = "function")) {
+  `%||%` <- function(a, b) if (is.null(a) || length(a) == 0 || (length(a) > 0 && is.na(a[1]))) b else a
+}
+
 repo_root <- normalizePath(file.path(testthat::test_path(), "..", ".."))
 data_dir  <- file.path(repo_root, "data", "samples")
 out_root  <- file.path(tempdir(), "broker_test_01")
@@ -37,24 +41,36 @@ test_that("01_descriptivo.R corre end-to-end y produce salidas", {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
   resultado <- tryCatch({
-    system2(
-      "Rscript",
-      args = c(
-        file.path(repo_root, "scripts", "01_descriptivo.R"),
-        "--input", file.path(data_dir, "operaciones.csv"),
-        "--out", out_root
-      ),
-      stdout = TRUE,
-      stderr = TRUE
+    lib_dir <- Sys.getenv("R_LIBS_USER", unset = "")
+    prefix <- if (nzchar(lib_dir)) paste0("R_LIBS_USER=", lib_dir, " ") else ""
+    sh_cmd <- paste0(
+      prefix, "Rscript ",
+      shQuote(file.path(repo_root, "scripts", "01_descriptivo.R")),
+      " --input ", shQuote(file.path(data_dir, "operaciones.csv")),
+      " --out ", shQuote(out_root),
+      " 2>&1"
     )
+    out <- system(sh_cmd, intern = TRUE)
+    out
   }, error = function(e) e)
   expect_false(inherits(resultado, "error"),
                info = "01_descriptivo.R debe correr sin errores")
+  status <- attr(resultado, "status")
+  if (is.null(status)) status <- 0L
+  expect_equal(status, 0L,
+               info = sprintf("Rscript exit status 0; got %s. Output:\n%s",
+                              status,
+                              paste(head(resultado, 10), collapse = "\n")))
 
-  # Buscar el run_id del directorio m\u00e1s reciente
-  runs <- list.dirs(out_root, recursive = FALSE)
+  # Buscar el run_id del directorio m\u00e1s reciente (tolerar tempfile no creado)
+  runs <- if (dir.exists(out_root)) list.dirs(out_root, recursive = FALSE) else character(0)
   runs <- runs[grepl("/\\d{8}-\\d{6}-[a-f0-9]{6}$", runs)]
-  expect_true(length(runs) >= 1)
+  if (length(runs) == 0) {
+    parent <- dirname(out_root)
+    all_dirs <- list.dirs(parent, recursive = TRUE)
+    runs <- all_dirs[grepl("/broker_test_01/\\d{8}-\\d{6}-[a-f0-9]{6}$", all_dirs)]
+  }
+  expect_true(length(runs) >= 1, info = sprintf("No se encontr\u00f3 ning\u00fan run en %s", out_root))
   last_run <- runs[order(runs)][length(runs)]
 
   for (archivo in c("kpi_mensual.csv", "kpi_por_mesa.csv",
