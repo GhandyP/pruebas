@@ -49,8 +49,9 @@ resumir_kpi_mensual <- function(df_mensual) {
         commissions = sum(.data$commissions),
         n_clients = sum(.data$n_clients),
         ticket_medio = ifelse(sum(.data$ops) > 0,
-                              sum(.data$notional) / sum(.data$ops),
-                              NA_real_),
+          sum(.data$notional) / sum(.data$ops),
+          NA_real_
+        ),
         .groups = "drop"
       ) |>
       dplyr::arrange(.data$mes)
@@ -58,7 +59,8 @@ resumir_kpi_mensual <- function(df_mensual) {
     # Fallback base R (sin dplyr)
     out <- stats::aggregate(. ~ mes,
       data = df_mensual[, c("mes", "ops", "notional", "commissions", "n_clients")],
-      FUN = sum)
+      FUN = sum
+    )
     out$ticket_medio <- ifelse(out$ops > 0, out$notional / out$ops, NA_real_)
     out[order(out$mes), ]
   }
@@ -137,7 +139,7 @@ driver_variacion <- function(df_ops, base, objetivo) {
   }
   # Implementaci\u00f3n simple: agrega comisiones por dimensi\u00f3n
   base_total <- sum(df_ops$commission[df_ops$date >= base & df_ops$date < as.Date(base) + 31])
-  tgt_total  <- sum(df_ops$commission[df_ops$date >= objetivo & df_ops$date < as.Date(objetivo) + 31])
+  tgt_total <- sum(df_ops$commission[df_ops$date >= objetivo & df_ops$date < as.Date(objetivo) + 31])
 
   list(base_total = base_total, target_total = tgt_total)
 }

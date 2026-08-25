@@ -8,43 +8,43 @@ DESKS <- c("EQ", "FI", "DERIV", "FX", "WEALTH")
 
 #' Catálogo de símbolos (extiende según la realidad)
 SYMBOLS <- c(
-  "AAPL", "MSFT", "GOOG", "AMZN", "NVDA", "META", "TSLA",  # EQ
-  "BONO2027", "BONO2030", "LETRA",                         # FI
-  "DOLAR", "EURO",                                         # FX
-  "SP500", "ORO"                                           # WEALTH proxy + ref
+  "AAPL", "MSFT", "GOOG", "AMZN", "NVDA", "META", "TSLA", # EQ
+  "BONO2027", "BONO2030", "LETRA", # FI
+  "DOLAR", "EURO", # FX
+  "SP500", "ORO" # WEALTH proxy + ref
 )
 
 #' Esquema esperado por archivo de entrada
 #' Cada entrada es un data.frame de 0 filas con los tipos correctos.
 ESQUEMAS <- list(
   operaciones = data.frame(
-    trade_id   = character(),
-    date       = as.Date(character()),
-    symbol     = character(),
-    side       = character(),
-    qty        = numeric(),
-    price      = numeric(),
+    trade_id = character(),
+    date = as.Date(character()),
+    symbol = character(),
+    side = character(),
+    qty = numeric(),
+    price = numeric(),
     commission = numeric(),
-    client_id  = character(),
-    desk       = character(),
+    client_id = character(),
+    desk = character(),
     stringsAsFactors = FALSE
   ),
   precios = data.frame(
-    date   = as.Date(character()),
+    date = as.Date(character()),
     symbol = character(),
-    open   = numeric(),
-    high   = numeric(),
-    low    = numeric(),
-    close  = numeric(),
+    open = numeric(),
+    high = numeric(),
+    low = numeric(),
+    close = numeric(),
     volume = integer(),
     stringsAsFactors = FALSE
   ),
   posiciones = data.frame(
-    date        = as.Date(character()),
-    client_id   = character(),
-    symbol      = character(),
-    qty         = numeric(),
-    avg_price   = numeric(),
+    date = as.Date(character()),
+    client_id = character(),
+    symbol = character(),
+    qty = numeric(),
+    avg_price = numeric(),
     margin_used = numeric(),
     stringsAsFactors = FALSE
   )
@@ -70,11 +70,13 @@ leer_csv_tipado <- function(ruta, tipo) {
   }
   esquema <- ESQUEMAS[[tipo]]
   if (is.null(esquema)) {
-    stop(sprintf("[io.R] Tipo desconocido: '%s'. Us\u00e1 uno de %s.",
-                 tipo, paste(names(ESQUEMAS), collapse = ", ")), call. = FALSE)
+    stop(sprintf(
+      "[io.R] Tipo desconocido: '%s'. Us\u00e1 uno de %s.",
+      tipo, paste(names(ESQUEMAS), collapse = ", ")
+    ), call. = FALSE)
   }
   nombres <- names(esquema)
-  clases  <- vapply(esquema, function(col) class(col)[1], character(1))
+  clases <- vapply(esquema, function(col) class(col)[1], character(1))
 
   if (requireNamespace("readr", quietly = TRUE)) {
     df <- readr::read_csv(
@@ -90,7 +92,7 @@ leer_csv_tipado <- function(ruta, tipo) {
       check.names = FALSE
     )
     if (tipo %in% c("operaciones", "precios", "posiciones") &&
-        "date" %in% names(df)) {
+      "date" %in% names(df)) {
       df$date <- as.Date(as.character(df$date))
     }
   }
@@ -129,14 +131,14 @@ validar_contrato <- function(df, tipo, asof = Sys.Date()) {
   switch(tipo,
     "operaciones" = {
       assert_non_nulos(df, c("trade_id", "date", "symbol", "client_id", "desk", "side"))
-      assert_en(df$side, c("BUY", "SELL"),        "side")
-      assert_en(df$desk, DESKS,                   "desk")
-      assert_symbols(df$symbol,                   "symbol")
-      assert_numeric_positivo(df$qty,             "qty",        permitir_cero = FALSE)
-      assert_numeric_positivo(df$price,           "price",      permitir_cero = FALSE)
-      assert_numeric_positivo(df$commission,      "commission", permitir_cero = TRUE)
-      assert_sin_futuro(df$date, asof,            "date")
-      assert_unicos(df$trade_id,                  "trade_id")
+      assert_en(df$side, c("BUY", "SELL"), "side")
+      assert_en(df$desk, DESKS, "desk")
+      assert_symbols(df$symbol, "symbol")
+      assert_numeric_positivo(df$qty, "qty", permitir_cero = FALSE)
+      assert_numeric_positivo(df$price, "price", permitir_cero = FALSE)
+      assert_numeric_positivo(df$commission, "commission", permitir_cero = TRUE)
+      assert_sin_futuro(df$date, asof, "date")
+      assert_unicos(df$trade_id, "trade_id")
       # Regla derivada: notional = qty * price (no se guarda, se calcula)
       invisible(TRUE)
     },
@@ -144,10 +146,10 @@ validar_contrato <- function(df, tipo, asof = Sys.Date()) {
       assert_non_nulos(df, c("date", "symbol", "open", "high", "low", "close", "volume"))
       assert_symbols(df$symbol, "symbol")
       assert_sin_futuro(df$date, asof, "date")
-      assert_numeric_positivo(df$open,   "open",   permitir_cero = TRUE)
-      assert_numeric_positivo(df$high,   "high",   permitir_cero = TRUE)
-      assert_numeric_positivo(df$low,    "low",    permitir_cero = TRUE)
-      assert_numeric_positivo(df$close,  "close",  permitir_cero = TRUE)
+      assert_numeric_positivo(df$open, "open", permitir_cero = TRUE)
+      assert_numeric_positivo(df$high, "high", permitir_cero = TRUE)
+      assert_numeric_positivo(df$low, "low", permitir_cero = TRUE)
+      assert_numeric_positivo(df$close, "close", permitir_cero = TRUE)
       assert_numeric_positivo(df$volume, "volume", permitir_cero = TRUE)
       # high >= low
       if (any(df$high < df$low, na.rm = TRUE)) {
@@ -159,7 +161,7 @@ validar_contrato <- function(df, tipo, asof = Sys.Date()) {
       assert_non_nulos(df, c("date", "client_id", "symbol", "qty", "avg_price", "margin_used"))
       assert_symbols(df$symbol, "symbol")
       assert_sin_futuro(df$date, asof, "date")
-      assert_numeric_positivo(df$avg_price,   "avg_price",   permitir_cero = TRUE)
+      assert_numeric_positivo(df$avg_price, "avg_price", permitir_cero = TRUE)
       assert_numeric_positivo(df$margin_used, "margin_used", permitir_cero = TRUE)
       invisible(TRUE)
     },
@@ -173,7 +175,8 @@ assert_non_nulos <- function(df, cols) {
   faltantes <- setdiff(cols, names(df))
   if (length(faltantes) > 0) {
     stop(sprintf("[io.R] Faltan columnas: %s.", paste(faltantes, collapse = ", ")),
-         call. = FALSE)
+      call. = FALSE
+    )
   }
   for (col in cols) {
     v <- df[[col]]
@@ -239,7 +242,8 @@ assert_sin_futuro <- function(dates, asof, nombre) {
 assert_unicos <- function(x, nombre) {
   if (anyDuplicated(x)) {
     stop(sprintf("[io.R] '%s' contiene duplicados; debe ser \u00fanico.", nombre),
-         call. = FALSE)
+      call. = FALSE
+    )
   }
   invisible(TRUE)
 }
@@ -262,17 +266,17 @@ escribir_metadata <- function(ruta, run_id, module, params, input_paths, asof,
   }, character(1))
 
   meta <- list(
-    run_id      = run_id,
-    module      = module,
-    started_at  = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
+    run_id = run_id,
+    module = module,
+    started_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
     finished_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
-    asof        = format(asof),
+    asof = format(asof),
     input_paths = as.list(input_paths),
     input_sha256 = as.list(inputs_sha),
-    params      = params,
-    r_version   = paste(R.version$major, R.version$minor, sep = "."),
-    packages    = pkg_versions(),
-    extra       = extra
+    params = params,
+    r_version = paste(R.version$major, R.version$minor, sep = "."),
+    packages = pkg_versions(),
+    extra = extra
   )
 
   jsonlite::write_json(

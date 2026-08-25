@@ -14,14 +14,17 @@
 suppressWarnings(suppressMessages({
   # Cargar biblioteca interna
   # Encontrar el directorio del script via commandArgs() (no depende del cwd)
-  script_dir <- tryCatch({
-    args <- commandArgs(trailingOnly = FALSE)
-    file_arg <- sub("--file=(", "", fixed = TRUE, perl = TRUE, x = {
-      m <- regmatches(args, regexpr("--file=[^ ]+", args))
-      if (length(m) > 0) sub("^--file=", "", m[1]) else NA_character_
-    })
-    if (!is.na(file_arg)) dirname(file_arg) else NA_character_
-  }, error = function(e) NA_character_)
+  script_dir <- tryCatch(
+    {
+      args <- commandArgs(trailingOnly = FALSE)
+      file_arg <- sub("--file=(", "", fixed = TRUE, perl = TRUE, x = {
+        m <- regmatches(args, regexpr("--file=[^ ]+", args))
+        if (length(m) > 0) sub("^--file=", "", m[1]) else NA_character_
+      })
+      if (!is.na(file_arg)) dirname(file_arg) else NA_character_
+    },
+    error = function(e) NA_character_
+  )
   if (is.na(script_dir) || !nzchar(script_dir)) script_dir <- "scripts"
 
   root_dir <- normalizePath(file.path(script_dir, ".."), mustWork = FALSE)
@@ -35,17 +38,20 @@ opts <- list()
 argv <- commandArgs(trailingOnly = TRUE)
 i <- 1
 while (i <= length(argv)) {
-  tok <- argv[i]; val <- if (i + 1 <= length(argv) && !startsWith(argv[i + 1], "--")) argv[i + 1] else TRUE
+  tok <- argv[i]
+  val <- if (i + 1 <= length(argv) && !startsWith(argv[i + 1], "--")) argv[i + 1] else TRUE
   opts[[sub("^--", "", tok)]] <- val
   i <- i + if (isTRUE(val)) 1 else 2
 }
 
-input_path  <- opts$input %||% "data/samples/operaciones.csv"
-asof_str    <- opts$asof
-out_root    <- opts$out %||% "output/"
-run_id      <- sprintf("%s-%s", format(Sys.time(), "%Y%m%d-%H%M%S"),
-                       substr(digest::digest(Sys.time(), algo = "md5"), 1, 6))
-out_dir     <- file.path(out_root, run_id)
+input_path <- opts$input %||% "data/samples/operaciones.csv"
+asof_str <- opts$asof
+out_root <- opts$out %||% "output/"
+run_id <- sprintf(
+  "%s-%s", format(Sys.time(), "%Y%m%d-%H%M%S"),
+  substr(digest::digest(Sys.time(), algo = "md5"), 1, 6)
+)
+out_dir <- file.path(out_root, run_id)
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 asof <- if (is.null(asof_str) || isTRUE(asof_str)) Sys.Date() else as.Date(asof_str)
 
@@ -57,13 +63,13 @@ ops <- leer_csv_tipado(input_path, "operaciones")
 validar_contrato(ops, "operaciones", asof = asof)
 
 # --- KPIs ---------------------------------------------------------------------
-ops$notional   <- ops$qty * ops$price
-ops$mes_num    <- as.integer(format(ops$date, "%m"))
-ops$anio_num   <- as.integer(format(ops$date, "%Y"))
+ops$notional <- ops$qty * ops$price
+ops$mes_num <- as.integer(format(ops$date, "%m"))
+ops$anio_num <- as.integer(format(ops$date, "%Y"))
 
-kpi_mes_df  <- resumir_kpi_mensual(kpi_mensual(ops))
+kpi_mes_df <- resumir_kpi_mensual(kpi_mensual(ops))
 kpi_mesa_df <- kpi_por_mesa(ops)
-kpi_sym_df  <- if (requireNamespace("dplyr", quietly = TRUE)) {
+kpi_sym_df <- if (requireNamespace("dplyr", quietly = TRUE)) {
   ops |>
     dplyr::group_by(symbol) |>
     dplyr::summarise(
@@ -92,13 +98,13 @@ kpi_sym_df  <- if (requireNamespace("dplyr", quietly = TRUE)) {
 concentracion <- concentracion_cliente(ops)
 concentracion$peso_acum <- cumsum(concentracion$weight)
 herfindahl <- sum(concentracion$weight^2)
-var_mom    <- variacion_mom(kpi_mes_df, "commissions")
+var_mom <- variacion_mom(kpi_mes_df, "commissions")
 
 # --- Salidas CSV --------------------------------------------------------------
-escribir_csv(kpi_mes_df,  file.path(out_dir, "kpi_mensual.csv"))
+escribir_csv(kpi_mes_df, file.path(out_dir, "kpi_mensual.csv"))
 escribir_csv(kpi_mesa_df, file.path(out_dir, "kpi_por_mesa.csv"))
-escribir_csv(kpi_sym_df,  file.path(out_dir, "kpi_por_simbolo.csv"))
-escribir_csv(var_mom,     file.path(out_dir, "variacion_mensual.csv"))
+escribir_csv(kpi_sym_df, file.path(out_dir, "kpi_por_simbolo.csv"))
+escribir_csv(var_mom, file.path(out_dir, "variacion_mensual.csv"))
 escribir_csv(concentracion, file.path(out_dir, "concentracion_clientes.csv"))
 
 # --- Salidas PNG --------------------------------------------------------------
@@ -120,8 +126,10 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 
   png2 <- file.path(out_dir, "02_comisiones_por_mesa.png")
   grDevices::png(png2, width = 1400, height = 800, res = 120)
-  p_mesa <- ggplot2::ggplot(kpi_mesa_df,
-                            ggplot2::aes(x = mes, y = commissions, fill = desk)) +
+  p_mesa <- ggplot2::ggplot(
+    kpi_mesa_df,
+    ggplot2::aes(x = mes, y = commissions, fill = desk)
+  ) +
     ggplot2::geom_col() +
     ggplot2::scale_fill_manual(values = paleta_mesas()) +
     ggplot2::labs(
@@ -136,15 +144,21 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
   grDevices::png(png3, width = 1200, height = 800, res = 120)
   top_n <- min(15, nrow(concentracion))
   print(
-    ggplot2::ggplot(concentracion[seq_len(top_n), ],
-                    ggplot2::aes(x = stats::reorder(client_id, weight),
-                                y = weight, fill = peso_acum)) +
+    ggplot2::ggplot(
+      concentracion[seq_len(top_n), ],
+      ggplot2::aes(
+        x = stats::reorder(client_id, weight),
+        y = weight, fill = peso_acum
+      )
+    ) +
       ggplot2::geom_col() +
       ggplot2::coord_flip() +
       ggplot2::labs(
         title = "Concentraci\u00f3n de clientes (peso acumulado)",
-        subtitle = sprintf("Top %d clientes | Herfindahl=%.4f",
-                           top_n, herfindahl),
+        subtitle = sprintf(
+          "Top %d clientes | Herfindahl=%.4f",
+          top_n, herfindahl
+        ),
         x = "Cliente", y = "Participaci\u00f3n en comisiones"
       ) +
       tema_ggplot()
@@ -181,31 +195,43 @@ variacion_linea <- if (is.na(variacion_pct)) {
 
 mesa_top <- kpi_mesa_df |>
   (\(d) if (requireNamespace("dplyr", quietly = TRUE)) {
-    dplyr::group_by(d, desk) |> dplyr::summarise(tot = sum(commissions), .groups = "drop") |>
-      dplyr::arrange(dplyr::desc(tot)) |> utils::head(1)
+    dplyr::group_by(d, desk) |>
+      dplyr::summarise(tot = sum(commissions), .groups = "drop") |>
+      dplyr::arrange(dplyr::desc(tot)) |>
+      utils::head(1)
   } else {
     agg <- stats::aggregate(commissions ~ desk, data = d, FUN = sum)
     names(agg)[2] <- "tot"
     agg[order(-agg$tot), ][1, , drop = FALSE]
   })()
-mesa_top_linea <- sprintf("Mesa l\u00edder: %s (%.0f en comisiones)",
-                          mesa_top$desk, mesa_top$tot[1])
+mesa_top_linea <- sprintf(
+  "Mesa l\u00edder: %s (%.0f en comisiones)",
+  mesa_top$desk, mesa_top$tot[1]
+)
 
 resumen_md <- c(
   "# Resumen ejecutivo \u2014 \u00e1rea descriptiva",
   "",
-  sprintf("- **Per\u00edodo analizado:** %s ... %s",
-          format(min(ops$date)), format(max(ops$date))),
+  sprintf(
+    "- **Per\u00edodo analizado:** %s ... %s",
+    format(min(ops$date)), format(max(ops$date))
+  ),
   sprintf("- **Operaciones totales:** %d", nrow(ops)),
   sprintf("- **Notional total:** %.2f", sum(ops$notional)),
   sprintf("- **Comisiones totales:** %.2f", sum(ops$commission)),
-  sprintf("- **Mes %s:** comisiones = %.2f (%s)",
-          format(ultimo_mes), ultimo_valor, variacion_linea),
-  sprintf("- **Concentraci\u00f3n de clientes:** %.4f (HHI) \u2192 %s.",
-          herfindahl, concentracion_label),
+  sprintf(
+    "- **Mes %s:** comisiones = %.2f (%s)",
+    format(ultimo_mes), ultimo_valor, variacion_linea
+  ),
+  sprintf(
+    "- **Concentraci\u00f3n de clientes:** %.4f (HHI) \u2192 %s.",
+    herfindahl, concentracion_label
+  ),
   sprintf("- %s.", mesa_top_linea),
-  sprintf("- **Top 5 s\u00edmbolos por notional:** %s.",
-          paste(head(kpi_sym_df$symbol, 5), collapse = ", ")),
+  sprintf(
+    "- **Top 5 s\u00edmbolos por notional:** %s.",
+    paste(head(kpi_sym_df$symbol, 5), collapse = ", ")
+  ),
   "",
   "## Salidas generadas",
   "",
@@ -218,8 +244,10 @@ resumen_md <- c(
   "- `02_comisiones_por_mesa.png`",
   "- `03_concentracion_clientes.png`",
   "",
-  sprintf("_Generado por 01_descriptivo.R \u2014 run %s \u2014 asof %s._",
-          run_id, format(asof))
+  sprintf(
+    "_Generado por 01_descriptivo.R \u2014 run %s \u2014 asof %s._",
+    run_id, format(asof)
+  )
 )
 writeLines(resumen_md, resumen_path)
 

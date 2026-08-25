@@ -63,6 +63,8 @@ tema_ggplot <- function() {
 
 #' Paleta de colores determin\u00edstica para mesas
 paleta_mesas <- function() {
-  c(EQ = "#1f77b4", FI = "#ff7f0e", DERIV = "#2ca02c",
-    FX = "#d62728", WEALTH = "#9467bd")
+  c(
+    EQ = "#1f77b4", FI = "#ff7f0e", DERIV = "#2ca02c",
+    FX = "#d62728", WEALTH = "#9467bd"
+  )
 }

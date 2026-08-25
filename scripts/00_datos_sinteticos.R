@@ -13,10 +13,13 @@ suppressMessages({
 if (TRUE) {
   # placeholder no-op
 }
-script_dir <- tryCatch({
-  ofile <- sys.frame(1)$ofile
-  if (!is.null(ofile)) dirname(ofile) else "."
-}, error = function(e) ".")
+script_dir <- tryCatch(
+  {
+    ofile <- sys.frame(1)$ofile
+    if (!is.null(ofile)) dirname(ofile) else "."
+  },
+  error = function(e) "."
+)
 
 # --- CLI ----------------------------------------------------------------------
 parse_args <- function(args, defaults = list()) {
@@ -50,11 +53,11 @@ defaults <- list(
 )
 opts <- parse_args(commandArgs(trailingOnly = TRUE), defaults)
 set.seed(as.integer(opts$seed))
-seed_val       <- as.integer(opts$seed)
-n_ops          <- as.integer(opts$`n-ops`)
-fecha_desde    <- as.Date(opts$desde)
-fecha_hasta    <- as.Date(opts$hasta)
-out_dir        <- opts$out
+seed_val <- as.integer(opts$seed)
+n_ops <- as.integer(opts$`n-ops`)
+fecha_desde <- as.Date(opts$desde)
+fecha_hasta <- as.Date(opts$hasta)
+out_dir <- opts$out
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # --- Cat\u00e1logos (deben coincidir con R/io.R) -------------------------------
@@ -74,26 +77,31 @@ if (fecha_desde >= fecha_hasta) {
 
 # --- operaciones.csv ----------------------------------------------------------
 fecha_seq <- seq.Date(fecha_desde, fecha_hasta, by = "day")
-dias      <- sample(fecha_seq, n_ops, replace = TRUE)
+dias <- sample(fecha_seq, n_ops, replace = TRUE)
 
 operaciones <- data.frame(
-  trade_id   = sprintf("T%07d", seq_len(n_ops)),
-  date       = as.Date(dias, origin = "1970-01-01"),
-  symbol     = sample(SYMBOLS, n_ops, replace = TRUE,
-                      prob = c(rep(0.20, 7), 0.08, 0.08, 0.05, 0.12, 0.04, 0.10, 0.10)),
-  side       = sample(SIDES, n_ops, replace = TRUE, prob = c(0.55, 0.45)),
-  qty        = round(runif(n_ops, 1, 1000), 4),
-  price      = round(rlnorm(n_ops, meanlog = 4.0, sdlog = 0.8), 4),
+  trade_id = sprintf("T%07d", seq_len(n_ops)),
+  date = as.Date(dias, origin = "1970-01-01"),
+  symbol = sample(SYMBOLS, n_ops,
+    replace = TRUE,
+    prob = c(rep(0.20, 7), 0.08, 0.08, 0.05, 0.12, 0.04, 0.10, 0.10)
+  ),
+  side = sample(SIDES, n_ops, replace = TRUE, prob = c(0.55, 0.45)),
+  qty = round(runif(n_ops, 1, 1000), 4),
+  price = round(rlnorm(n_ops, meanlog = 4.0, sdlog = 0.8), 4),
   commission = round(rlnorm(n_ops, meanlog = 1.0, sdlog = 0.6), 4),
-  client_id  = sample(CLIENTS, n_ops, replace = TRUE),
-  desk       = sample(DESKS, n_ops, replace = TRUE,
-                      prob = c(0.45, 0.20, 0.10, 0.10, 0.15)),
+  client_id = sample(CLIENTS, n_ops, replace = TRUE),
+  desk = sample(DESKS, n_ops,
+    replace = TRUE,
+    prob = c(0.45, 0.20, 0.10, 0.10, 0.15)
+  ),
   stringsAsFactors = FALSE
 )
 operaciones$commission <- round(operaciones$commission * 0.05, 4)
 
 write.csv(operaciones, file.path(out_dir, "operaciones.csv"),
-          row.names = FALSE, fileEncoding = "UTF-8")
+  row.names = FALSE, fileEncoding = "UTF-8"
+)
 
 # --- precios.csv --------------------------------------------------------------
 precios_list <- list()
@@ -112,16 +120,16 @@ for (s in SYMBOLS) {
   n_dias <- length(fecha_seq)
   drift <- rlnorm(n_dias, meanlog = 0, sdlog = 0.01)
   closes <- base_price * cumprod(exp(drift))
-  opens  <- c(base_price, head(closes, -1))
-  highs  <- pmax(opens, closes) * (1 + abs(rnorm(n_dias, 0, 0.003)))
-  lows   <- pmin(opens, closes) * (1 - abs(rnorm(n_dias, 0, 0.003)))
-  vol    <- as.integer(rlnorm(n_dias, 9, 0.7))
+  opens <- c(base_price, head(closes, -1))
+  highs <- pmax(opens, closes) * (1 + abs(rnorm(n_dias, 0, 0.003)))
+  lows <- pmin(opens, closes) * (1 - abs(rnorm(n_dias, 0, 0.003)))
+  vol <- as.integer(rlnorm(n_dias, 9, 0.7))
   precios_list[[s]] <- data.frame(
     date = fecha_seq,
     symbol = s,
     open = round(opens, 4),
     high = round(highs, 4),
-    low  = round(lows, 4),
+    low = round(lows, 4),
     close = round(closes, 4),
     volume = vol,
     stringsAsFactors = FALSE
@@ -132,7 +140,8 @@ precios <- precios[order(precios$symbol, precios$date), ]
 rownames(precios) <- NULL
 
 write.csv(precios, file.path(out_dir, "precios.csv"),
-          row.names = FALSE, fileEncoding = "UTF-8")
+  row.names = FALSE, fileEncoding = "UTF-8"
+)
 
 # --- posiciones.csv -----------------------------------------------------------
 pos_list <- list()
@@ -146,18 +155,19 @@ for (cli in CLIENTS) {
   }, numeric(1))
   mrgn <- pmax(0, qtys * avgp * runif(n_pos, 0.1, 0.4))
   pos_list[[cli]] <- data.frame(
-    date        = fecha_hasta,
-    client_id   = cli,
-    symbol      = syms,
-    qty         = qtys,
-    avg_price   = round(avgp, 4),
+    date = fecha_hasta,
+    client_id = cli,
+    symbol = syms,
+    qty = qtys,
+    avg_price = round(avgp, 4),
     margin_used = round(mrgn, 4),
     stringsAsFactors = FALSE
   )
 }
 posiciones <- do.call(rbind, pos_list)
 write.csv(posiciones, file.path(out_dir, "posiciones.csv"),
-          row.names = FALSE, fileEncoding = "UTF-8")
+  row.names = FALSE, fileEncoding = "UTF-8"
+)
 
 # --- Resumen en stdout --------------------------------------------------------
 cat("[00] Datos sint\u00e9ticos generados:\n")
@@ -166,7 +176,11 @@ cat(sprintf("  seed        = %d\n", seed_val))
 cat(sprintf("  n_ops       = %d\n", n_ops))
 cat(sprintf("  rango       = %s ... %s\n", fecha_desde, fecha_hasta))
 cat(sprintf("  operaciones = %d filas\n", nrow(operaciones)))
-cat(sprintf("  precios     = %d filas (%d s\u00edmbolos)\n", nrow(precios),
-            length(SYMBOLS)))
-cat(sprintf("  posiciones  = %d filas (%d clientes)\n", nrow(posiciones),
-            length(CLIENTS)))
+cat(sprintf(
+  "  precios     = %d filas (%d s\u00edmbolos)\n", nrow(precios),
+  length(SYMBOLS)
+))
+cat(sprintf(
+  "  posiciones  = %d filas (%d clientes)\n", nrow(posiciones),
+  length(CLIENTS)
+))
