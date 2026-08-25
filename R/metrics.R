@@ -40,25 +40,28 @@ kpi_mensual <- function(df) {
 
 #' Resume kpi_mensual (suma/agregaci\u00f3n por mes)
 resumir_kpi_mensual <- function(df_mensual) {
-  agg <- if (requireNamespace("dplyr", quietly = TRUE)) {
+  if (requireNamespace("dplyr", quietly = TRUE)) {
     df_mensual |>
-      dplyr::group_by(mes) |>
+      dplyr::group_by(.data$mes) |>
       dplyr::summarise(
-        ops = sum(ops),
-        notional = sum(notional),
-        commissions = sum(commissions),
-        n_clients = sum(n_clients),
-        ticket_medio = ifelse(ops > 0, notional / ops, NA_real_),
+        ops = sum(.data$ops),
+        notional = sum(.data$notional),
+        commissions = sum(.data$commissions),
+        n_clients = sum(.data$n_clients),
+        ticket_medio = ifelse(sum(.data$ops) > 0,
+                              sum(.data$notional) / sum(.data$ops),
+                              NA_real_),
         .groups = "drop"
       ) |>
-      dplyr::arrange(mes)
+      dplyr::arrange(.data$mes)
   } else {
     # Fallback base R (sin dplyr)
-    out <- stats::aggregate(. ~ mes, data = df_mensual[, c("mes", "ops", "notional", "commissions", "n_clients")], FUN = sum)
+    out <- stats::aggregate(. ~ mes,
+      data = df_mensual[, c("mes", "ops", "notional", "commissions", "n_clients")],
+      FUN = sum)
     out$ticket_medio <- ifelse(out$ops > 0, out$notional / out$ops, NA_real_)
     out[order(out$mes), ]
   }
-  out
 }
 
 #' KPI por mesa y mes

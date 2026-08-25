@@ -3,8 +3,13 @@
 # CLI con optparse; salidas a output/<run_id>/.
 # Prohibido look-ahead. La prescriptiva recomienda; no ejecuta \u00f3rdenes.
 
-# === Testdata sint\u00e9tico \u2192 generado, no versionado ===
-data/samples/*.csv
+# === Testdata sintético pregenerado versionado en data/samples/*.csv ===
+# Solo se commitea los CSVs pregenerados por CI / version snapshot.
+# Cualquier CSV nuevo agregado por scripts/00_datos_sinteticos.R queda ignorado.
+# NO agregar más CSVs ac\u00e1 salvo regenerar el snapshot completo y bumpear.
+data/samples/operaciones.csv
+data/samples/precios.csv
+data/samples/posiciones.csv
 
 # === Output \u2192 no se commitea ===
 output/

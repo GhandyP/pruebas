@@ -79,24 +79,7 @@ leer_csv_tipado <- function(ruta, tipo) {
   if (requireNamespace("readr", quietly = TRUE)) {
     df <- readr::read_csv(
       ruta,
-      col_types = readr::cols(
-        trade_id   = readr::col_character(),
-        date       = readr::col_date(format = "%Y-%m-%d"),
-        symbol     = readr::col_character(),
-        side       = readr::col_character(),
-        qty        = readr::col_double(),
-        price      = readr::col_double(),
-        commission = readr::col_double(),
-        client_id  = readr::col_character(),
-        desk       = readr::col_character(),
-        open       = readr::col_double(),
-        high       = readr::col_double(),
-        low        = readr::col_double(),
-        close      = readr::col_double(),
-        volume     = readr::col_integer(),
-        avg_price  = readr::col_double(),
-        margin_used = readr::col_double()
-      ),
+      col_types = readr::cols(.default = readr::col_guess()),
       progress = FALSE
     )
   } else {

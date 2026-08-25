@@ -74,9 +74,17 @@ kpi_sym_df  <- if (requireNamespace("dplyr", quietly = TRUE)) {
     ) |>
     dplyr::arrange(dplyr::desc(notional))
 } else {
-  agg1 <- stats::aggregate(cbind(ops = rep(1, nrow(ops)), notional = ops$notional,
-                                commissions = ops$commission) ~ symbol,
-                           data = ops, FUN = sum)
+  base_df <- data.frame(
+    symbol = ops$symbol,
+    ops = 1L,
+    notional = ops$qty * ops$price,
+    commissions = ops$commission,
+    stringsAsFactors = FALSE
+  )
+  agg1 <- stats::aggregate(
+    cbind(ops, notional, commissions) ~ symbol,
+    data = base_df, FUN = sum
+  )
   agg1$ops <- as.integer(agg1$ops)
   agg1[order(-agg1$notional), ]
 }
@@ -95,9 +103,6 @@ escribir_csv(concentracion, file.path(out_dir, "concentracion_clientes.csv"))
 
 # --- Salidas PNG --------------------------------------------------------------
 if (requireNamespace("ggplot2", quietly = TRUE)) {
-  gg <- ggplot2::ggplot(...) # placeholder, se redefine abajo
-  rm(gg)
-
   png1 <- file.path(out_dir, "01_comisiones_mensuales.png")
   grDevices::png(png1, width = 1400, height = 700, res = 120)
   print(
