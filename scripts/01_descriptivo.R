@@ -13,9 +13,21 @@
 
 suppressWarnings(suppressMessages({
   # Cargar biblioteca interna
-  source(file.path(dirname(sys.frame(1)$ofile %||% "."), "..", "R", "io.R"))
-  source(file.path(dirname(sys.frame(1)$ofile %||% "."), "..", "R", "metrics.R"))
-  source(file.path(dirname(sys.frame(1)$ofile %||% "."), "..", "R", "utils.R"))
+  # Encontrar el directorio del script via commandArgs() (no depende del cwd)
+  script_dir <- tryCatch({
+    args <- commandArgs(trailingOnly = FALSE)
+    file_arg <- sub("--file=(", "", fixed = TRUE, perl = TRUE, x = {
+      m <- regmatches(args, regexpr("--file=[^ ]+", args))
+      if (length(m) > 0) sub("^--file=", "", m[1]) else NA_character_
+    })
+    if (!is.na(file_arg)) dirname(file_arg) else NA_character_
+  }, error = function(e) NA_character_)
+  if (is.na(script_dir) || !nzchar(script_dir)) script_dir <- "scripts"
+
+  root_dir <- normalizePath(file.path(script_dir, ".."), mustWork = FALSE)
+  source(file.path(root_dir, "R", "io.R"))
+  source(file.path(root_dir, "R", "metrics.R"))
+  source(file.path(root_dir, "R", "utils.R"))
 }))
 
 # --- CLI ----------------------------------------------------------------------

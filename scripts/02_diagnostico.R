@@ -6,7 +6,18 @@
 # Cruza con precios.csv (utilizando `asof` para evitar look-ahead).
 
 suppressWarnings(suppressMessages({
-  src_dir <- file.path(dirname(sys.frame(1)$ofile %||% "."), "..", "R")
+  # Encontrar el directorio del script via commandArgs() (no depende del cwd)
+  script_dir <- tryCatch({
+    args <- commandArgs(trailingOnly = FALSE)
+    file_arg <- sub("--file=(", "", fixed = TRUE, perl = TRUE, x = {
+      m <- regmatches(args, regexpr("--file=[^ ]+", args))
+      if (length(m) > 0) sub("^--file=", "", m[1]) else NA_character_
+    })
+    if (!is.na(file_arg)) dirname(file_arg) else NA_character_
+  }, error = function(e) NA_character_)
+  if (is.na(script_dir) || !nzchar(script_dir)) script_dir <- "scripts"
+
+  src_dir <- normalizePath(file.path(script_dir, "..", "R"), mustWork = FALSE)
   source(file.path(src_dir, "io.R"))
   source(file.path(src_dir, "metrics.R"))
   source(file.path(src_dir, "utils.R"))
@@ -42,10 +53,7 @@ precios <- leer_csv_tipado(precios_path, "precios")
 validar_contrato(ops,     "operaciones", asof = asof)
 validar_contrato(precios, "precios",     asof = asof)
 
-# Ventanas mensuales [\u00fanico a fin exclusivo)
-suma_en_rango <- function(df, desde, hasta_exclusive) {
-  df$date >= desde & df$date < hasta_exclusive
-}
+# Ventanas mensuales [inicio exclusivo a fin exclusivo)
 sig_mes <- function(mes) {
   primer_dia <- as.Date(format(mes, "%Y-%m-01"))
   siguiente  <- seq.Date(primer_dia, length.out = 2, by = "month")[2]
@@ -55,8 +63,8 @@ sig_mes <- function(mes) {
 b <- sig_mes(base)
 o <- sig_mes(objetivo)
 
-in_base <- with(ops, suma_en_rango(date, b$desde, b$hasta))
-in_tgt  <- with(ops, suma_en_rango(date, o$desde, o$hasta))
+in_base <- !is.na(ops$date) & ops$date >= b$desde & ops$date < b$hasta
+in_tgt  <- !is.na(ops$date) & ops$date >= o$desde & ops$date < o$hasta
 
 sub_base <- ops[in_base, , drop = FALSE]
 sub_tgt  <- ops[in_tgt,  , drop = FALSE]
@@ -114,10 +122,19 @@ vol_sym <- function(pr, desde, hasta) {
                        .groups = "drop")
   } else {
     pp <- pp[order(pp$symbol, pp$date), ]
-    out <- do.call(rbind, lapply(split(pp, pp$symbol), function(s) {
+    parts <- lapply(split(pp, pp$symbol), function(s) {
       r <- s$close / c(NA, head(s$close, -1)) - 1
-      data.frame(symbol = unique(s$symbol), vol_diaria = sd(r, na.rm = TRUE))
-    }))
+      v <- sd(r, na.rm = TRUE)
+      data.frame(symbol = unique(s$symbol)[1],
+                 vol_diaria = v,
+                 stringsAsFactors = FALSE)
+    })
+    parts <- Filter(function(d) nrow(d) > 0 && !is.na(d$vol_diaria[1]), parts)
+    if (length(parts) == 0) {
+      return(data.frame(symbol = character(), vol_diaria = numeric(),
+                        stringsAsFactors = FALSE))
+    }
+    out <- do.call(rbind, parts)
     rownames(out) <- NULL
     out
   }
@@ -127,7 +144,10 @@ vol_base <- vol_sym(precios, b$desde, b$hasta)
 vol_tgt  <- vol_sym(precios, o$desde, o$hasta)
 vol <- merge(vol_base, vol_tgt, by = "symbol", all = TRUE,
              suffixes = c("_base", "_tgt"))
-vol$delta_vol <- vol$vol_diaria_tgt - vol$vol_base
+# Coerce seguro: asegurar que ambas columnas son numeric y del mismo largo
+vol$vol_diaria_base <- as.numeric(vol$vol_diaria_base)
+vol$vol_diaria_tgt  <- as.numeric(vol$vol_diaria_tgt)
+vol$delta_vol <- vol$vol_diaria_tgt - vol$vol_diaria_base
 
 # --- Salidas ---------------------------------------------------------------
 escribir_csv(drivers_mesa, file.path(out_dir, "drivers_mesa.csv"))
@@ -171,7 +191,7 @@ resumen <- c(
   "- `drivers_simbolo_top20.csv`",
   "- `volatilidad_por_simbolo.csv`",
   "- `resumen.md`",
-  sprintf("", ""),
+  "",
   sprintf("_Generado por 02_diagnostico.R \u2014 run %s \u2014 asof %s._",
           run_id, format(asof))
 )

@@ -9,7 +9,18 @@
 # ADR-8: la prescriptiva es solo una recomendaci\u00f3n.
 
 suppressWarnings(suppressMessages({
-  src_dir <- file.path(dirname(sys.frame(1)$ofile %||% "."), "..", "R")
+  # Encontrar el directorio del script via commandArgs() (no depende del cwd)
+  script_dir <- tryCatch({
+    args <- commandArgs(trailingOnly = FALSE)
+    file_arg <- sub("--file=(", "", fixed = TRUE, perl = TRUE, x = {
+      m <- regmatches(args, regexpr("--file=[^ ]+", args))
+      if (length(m) > 0) sub("^--file=", "", m[1]) else NA_character_
+    })
+    if (!is.na(file_arg)) dirname(file_arg) else NA_character_
+  }, error = function(e) NA_character_)
+  if (is.na(script_dir) || !nzchar(script_dir)) script_dir <- "scripts"
+
+  src_dir <- normalizePath(file.path(script_dir, "..", "R"), mustWork = FALSE)
   source(file.path(src_dir, "io.R"))
   source(file.path(src_dir, "metrics.R"))
   source(file.path(src_dir, "utils.R"))
