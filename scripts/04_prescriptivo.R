@@ -27,17 +27,20 @@ suppressWarnings(suppressMessages({
   source(file.path(src_dir, "io.R"))
   source(file.path(src_dir, "metrics.R"))
   source(file.path(src_dir, "utils.R"))
+  source(file.path(src_dir, "cli.R"))
 }))
 
-opts <- list()
-argv <- commandArgs(trailingOnly = TRUE)
-i <- 1
-while (i <= length(argv)) {
-  tok <- argv[i]
-  val <- if (i + 1 <= length(argv) && !startsWith(argv[i + 1], "--")) argv[i + 1] else TRUE
-  opts[[sub("^--", "", tok)]] <- val
-  i <- i + if (isTRUE(val)) 1 else 2
+if (!requireNamespace("optparse", quietly = TRUE)) {
+  stop("[X] optparse no instalado.", call. = FALSE)
 }
+parser <- construir_parser(list(
+  list(name = "posiciones", help = "CSV de posiciones (posiciones.csv)"),
+  list(name = "forecast", help = "Opcional: CSV de forecast (forecast_30d.csv)"),
+  list(name = "asof", help = "Fecha de corte (YYYY-MM-DD, o 'today' para Sys.Date())"),
+  list(name = "out", help = "Directorio base de salida")
+))
+opts <- optparse::parse_args(parser)
+
 forecast_path <- opts$forecast %||% NULL
 pos_path <- opts$posiciones %||% "data/samples/posiciones.csv"
 out_root <- opts$out %||% "output/"

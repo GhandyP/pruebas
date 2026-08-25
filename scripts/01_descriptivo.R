@@ -31,18 +31,20 @@ suppressWarnings(suppressMessages({
   source(file.path(root_dir, "R", "io.R"))
   source(file.path(root_dir, "R", "metrics.R"))
   source(file.path(root_dir, "R", "utils.R"))
+  source(file.path(root_dir, "R", "cli.R"))
 }))
 
 # --- CLI ----------------------------------------------------------------------
 opts <- list()
-argv <- commandArgs(trailingOnly = TRUE)
-i <- 1
-while (i <= length(argv)) {
-  tok <- argv[i]
-  val <- if (i + 1 <= length(argv) && !startsWith(argv[i + 1], "--")) argv[i + 1] else TRUE
-  opts[[sub("^--", "", tok)]] <- val
-  i <- i + if (isTRUE(val)) 1 else 2
+if (!requireNamespace("optparse", quietly = TRUE)) {
+  stop("[01] optparse no instalado.", call. = FALSE)
 }
+parser <- construir_parser(list(
+  list(name = "input", help = "CSV de operaciones conforme al contrato"),
+  list(name = "asof",  help = "Fecha de corte (YYYY-MM-DD, o 'today' para Sys.Date())"),
+  list(name = "out",   help = "Directorio base de salida; cada corrida crea un <run_id> adentro")
+))
+opts <- optparse::parse_args(parser)
 
 input_path <- opts$input %||% "data/samples/operaciones.csv"
 asof_str <- opts$asof
